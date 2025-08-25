@@ -9,8 +9,8 @@ const doLogout = () => { auth.logout(); router.push({ name: 'login' }) }
 <template>
   <nav style="display:flex; gap:12px; padding:8px; border-bottom:1px solid #eee">
     <router-link to="/">홈</router-link>
-    <router-link to="/password/find">비번찾기</router-link>
-    <router-link to="/password/reset">비번리셋</router-link>
+    <router-link to="/password/find">비민번호 찾기</router-link>
+    <router-link to="/password/reset">비밀번호 리셋</router-link>
     <span style="margin-left:auto"></span>
     <template v-if="auth.isAuthed">
       <span>{{ auth.user?.email }}</span>
