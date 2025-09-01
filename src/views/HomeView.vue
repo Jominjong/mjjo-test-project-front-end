@@ -1,32 +1,25 @@
+<!-- HomeView.vue (기존 파일 대체) -->
 <script setup>
-import { onMounted, ref, computed } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRecipeStore } from '../stores/recipes'
+import { useAuthStore } from '../stores/auth'
 import { useRouter } from 'vue-router'
 
-const store = useRecipeStore()
-const router = useRouter()
+import RecipeList from '../components/Home/RecipeList.vue'
+import Pagination from '../components/Home/Pagination.vue'
+import Loding from '../components/Home/Loding.vue'
+import AuthErro from '../components/Home/AuthErro.vue'
 
-// 폼 바인딩용
+const auth = useAuthStore()
+const router = useRouter()
+const doLogout = () => { auth.logout(); router.push({ name: 'login' }) }
+
+const store = useRecipeStore()
 const keyword = ref(store.keyword)
 const categoryNo = ref(store.categoryNo)
 
-// 페이지 버튼(최대 5개) 계산
-const visiblePages = computed(() => {
-  const pages = []
-  const total = store.totalPages || 1
-  const cur = store.page || 1
-
-  const start = Math.max(1, cur - 2)
-  const end = Math.min(total, start + 4)
-  const realStart = Math.max(1, end - 4)
-
-  for (let p = realStart; p <= end; p++) pages.push(p)
-  return pages
-})
-
 onMounted(() => {
-  // 첫 진입 기본 조회
-  store.fetchList({ page: 1, size: 10 })
+  store.fetchList({ page: 1, size: 11 })
 })
 
 const goDetail = (boardNo) => {
@@ -39,104 +32,63 @@ const onSearch = async () => {
 </script>
 
 <template>
-  <div style="padding:16px; max-width:920px; margin:auto">
-    <h1>Recipes</h1>
+  <section class="min-h-screen w-full gradient-bg">
 
-    <!-- 검색 바 -->
-    <form @submit.prevent="onSearch" style="display:flex; gap:8px; align-items:center; margin:12px 0;">
-      <!-- 카테고리는 숫자라고 가정; 실제 값에 맞게 옵션 채우세요 -->
-      <select v-model.number="categoryNo">
-        <option :value="null">전체 카테고리</option>
-        <option :value="1">한식</option>
-        <option :value="2">양식</option>
-        <option :value="3">중식</option>
-        <option :value="4">일식</option>
-      </select>
+    <!-- 로딩 처리 -->
+    <Loding />
 
-      <input
-        v-model.trim="keyword"
-        placeholder="제목 검색"
-        style="flex:1; padding:6px 8px;"
-      />
-      <button type="submit">검색</button>
-    </form>
+    <!-- 인증에러 처리 -->
+    <AuthErro />
 
-    <p v-if="store.loading">Loading...</p>
-    <p v-if="store.error" style="color:red">{{ store.error }}</p>
+    <div class="mx-auto max-w-8xl px-4 py-8 lg:py-12 grid grid-cols-1 lg:grid-cols-[20rem_minmax(0,1fr)] gap-6">
+      <!-- Sidebar -->
+      <aside class="glass rounded-3xl p-6 sticky top-6 h-min">
+        <div class="mb-6">
+          <div class="text-4xl font-black leading-none">
+            <span class="gradient-text">Cookhub</span>
+          </div>
+          <p class="mt-2 text-sm text-slate-600">나만의 레시피를 모으는 가장 쉬운 방법</p>
+        </div>
 
-    <!-- 목록 -->
-    <ul v-if="!store.loading && !store.error">
-      <li
-        v-for="r in store.list"
-        :key="r.boardNo ?? r.id"
-        style="cursor:pointer; margin:6px 0"
-        @click="goDetail(r.boardNo ?? r.id)"
-      >
-        {{ r.title ?? r.boardTitle ?? r.name }}
-        <small> #{{ r.boardNo ?? r.id }} / 카테고리: {{ r.categoryNo ?? r.cgNo }} / 작성자: {{ r.userNo }}</small>
-      </li>
-      <li v-if="store.list.length === 0" style="color:#666">검색 결과가 없습니다.</li>
-    </ul>
+        <div class="card mb-6">
+          <div v-if="auth.isAuthed" class="mb-3">
+            <p class="text-sm text-slate-500">환영합니다!</p>
+            <p class="text-lg font-semibold">{{ auth.user?.name }}님</p>
+          </div>
+          <button @click="doLogout" class="btn-outline w-full">로그아웃</button>
+        </div>
 
-    <!-- 페이지네이션 -->
-    <div v-if="store.totalPages > 1" style="display:flex; gap:6px; margin-top:12px; align-items:center;">
-      <button :disabled="store.page === 1" @click="store.goTo(1)">« 처음</button>
-      <button :disabled="!store.hasPrev" @click="store.prev">‹ 이전</button>
+        <nav class="space-y-2">
+          <router-link class="btn-ghost w-full border-1 border-slate-300 " :to="{ name: 'recipe-new' }">📒 내 레시피 추가</router-link>
+        </nav>
+      </aside>
 
-      <button
-        v-for="p in visiblePages"
-        :key="p"
-        @click="store.goTo(p)"
-        :disabled="p === store.page"
-        :style="p === store.page ? 'font-weight:bold; text-decoration:underline' : ''"
-      >
-        {{ p }}
-      </button>
+      <!-- Main -->
+      <main class="space-y-6">
+        <div class="glass rounded-3xl p-4 lg:p-6">
+          <RecipeList
+            v-if="!store.loading && !store.error"
+            :items="store.list"
+            @select="goDetail"
+          />
+          <div v-else class="p-10 text-center text-slate-500">불러오는 중…</div>
+        </div>
 
-      <button :disabled="!store.hasNext" @click="store.next">다음 ›</button>
-      <button :disabled="store.page === store.totalPages" @click="store.goTo(store.totalPages)">마지막 »</button>
-
-      <span style="margin-left:8px; color:#666">
-        총 {{ store.total }}건 / {{ store.page }} / {{ store.totalPages }} 페이지
-      </span>
+        <div class="glass rounded-3xl p-3 lg:p-4 flex items-center justify-center">
+          <Pagination
+            :page="store.page"
+            :total-pages="store.totalPages"
+            :has-prev="store.hasPrev"
+            :has-next="store.hasNext"
+            :total="store.total"
+            @first="() => store.goTo(1)"
+            @prev="store.prev"
+            @go="(p) => store.goTo(p)"
+            @next="store.next"
+            @last="() => store.goTo(store.totalPages)"
+          />
+        </div>
+      </main>
     </div>
-  </div>
+  </section>
 </template>
-
-<!-- 
-<script setup>
-import { onMounted } from 'vue'
-import { useRecipeStore } from '../stores/recipes'
-import { useRouter } from 'vue-router'
-
-const store = useRecipeStore()
-const router = useRouter()
-
-onMounted(() => {
-  store.fetchList({ page: 1, size: 10 })
-})
-
-const goDetail = (boardNo) => {
-  router.push({ name: 'recipe-detail', params: { boardNo } })
-}
-</script>
-
-<template>
-  <div style="padding:16px">
-    <h1>Recipes</h1>
-
-    <p v-if="store.loading">Loading...</p>
-    <p v-if="store.error" style="color:red">{{ store.error }}</p>
-
-    <ul v-if="!store.loading">
-      <li
-        v-for="r in store.list"
-        :key="r.boardNo ?? r.id"
-        style="cursor:pointer; margin:6px 0"
-        @click="goDetail(r.boardNo ?? r.id)"
-      >
-        {{ r.title ?? r.boardTitle ?? r.name }} (#{{ r.boardNo ?? r.id }})
-      </li>
-    </ul>
-  </div>
-</template> -->
